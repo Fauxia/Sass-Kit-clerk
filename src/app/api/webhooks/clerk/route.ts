@@ -86,13 +86,13 @@ export async function POST(req: Request) {
         return new Response("Failed to process user", { status: 500 });
       }
 
-      if (result.user?._id) {
+      if (result.user?.id) {
         try {
           console.log("Updating Clerk metadata for user:", id);
           const clerk = await clerkClient();
           await clerk.users.updateUserMetadata(id, {
             publicMetadata: {
-              userId: result.user._id,
+              userId: result.user.id,
             },
           });
           console.log("Clerk metadata updated successfully");
