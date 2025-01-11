@@ -58,7 +58,7 @@ export const createUser = async (
     // Ensure the response is serializable
     return {
       success: true,
-      user: JSON.parse(JSON.stringify(newUser)),
+      user: newUser,
     };
   } catch (error) {
     console.error("Detailed error creating user:", {
