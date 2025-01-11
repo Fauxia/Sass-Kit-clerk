@@ -2,7 +2,7 @@
 
 import { useUser } from "@clerk/nextjs";
 
-export default function page() {
+export default function Page() {
   const { isLoaded, isSignedIn, user } = useUser();
   if (!isLoaded || !isSignedIn) {
     return null;
