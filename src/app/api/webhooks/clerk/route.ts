@@ -4,6 +4,8 @@ import { clerkClient, WebhookEvent } from "@clerk/nextjs/server";
 import { createUser } from "@/actions/createUser";
 
 export async function POST(req: Request) {
+  console.log("Webhook received at:", new Date().toISOString());
+
   const SIGNING_SECRET = process.env.SIGNING_SECRET;
 
   if (!SIGNING_SECRET) {
@@ -22,6 +24,12 @@ export async function POST(req: Request) {
   const svix_timestamp = headerPayload.get("svix-timestamp");
   const svix_signature = headerPayload.get("svix-signature");
 
+  console.log("Webhook headers received:", {
+    hasId: !!svix_id,
+    hasTimestamp: !!svix_timestamp,
+    hasSignature: !!svix_signature,
+  });
+
   // If there are no headers, error out
   if (!svix_id || !svix_timestamp || !svix_signature) {
     return new Response("Error: Missing Svix headers", {
@@ -32,6 +40,7 @@ export async function POST(req: Request) {
   // Get body
   const payload = await req.json();
   const body = JSON.stringify(payload);
+  console.log("Webhook payload received:", body);
 
   let evt: WebhookEvent;
 
@@ -42,6 +51,7 @@ export async function POST(req: Request) {
       "svix-timestamp": svix_timestamp,
       "svix-signature": svix_signature,
     }) as WebhookEvent;
+    console.log("Webhook verified successfully");
   } catch (err) {
     console.error("Error: Could not verify webhook:", err);
     return new Response("Error: Verification error", {
@@ -51,20 +61,25 @@ export async function POST(req: Request) {
 
   const { id } = evt.data;
   const eventType = evt.type;
+  console.log(`Processing webhook type: ${eventType}`);
 
   if (eventType === "user.created") {
     try {
       const { email_addresses, id } = evt.data;
+      console.log(
+        "Processing user creation for:",
+        email_addresses?.[0]?.email_address
+      );
 
       if (!email_addresses?.[0]?.email_address) {
         throw new Error("No email address provided");
       }
 
       const result = await createUser(email_addresses[0].email_address);
+      console.log("Create user result:", result);
 
       if (!result.success) {
         console.error("Failed to create user:", result.error);
-        // Don't return error response if user already exists
         if (result.error === "User already exists") {
           return new Response("User processed", { status: 200 });
         }
@@ -73,17 +88,16 @@ export async function POST(req: Request) {
 
       if (result.user?._id) {
         try {
-          // Get the clerk client instance
+          console.log("Updating Clerk metadata for user:", id);
           const clerk = await clerkClient();
-          // Now use the client instance to update user metadata
           await clerk.users.updateUserMetadata(id, {
             publicMetadata: {
               userId: result.user._id,
             },
           });
+          console.log("Clerk metadata updated successfully");
         } catch (error) {
           console.error("Failed to update Clerk metadata:", error);
-          // Continue anyway as the user was created successfully
         }
       }
     } catch (error) {

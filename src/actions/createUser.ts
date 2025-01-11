@@ -6,12 +6,16 @@ interface CreateUserResponse {
   success: boolean;
   user?: any;
   error?: string;
+  debug?: any;
 }
 
 export const createUser = async (
   email: string
 ): Promise<CreateUserResponse> => {
+  console.log("Creating user with email:", email); // Debug log
+
   if (!email) {
+    console.log("No email provided");
     return {
       success: false,
       error: "Email is required",
@@ -19,6 +23,13 @@ export const createUser = async (
   }
 
   try {
+    // Debug log for database connection
+    console.log("Attempting database connection...");
+
+    // Test database connection
+    await prisma.$connect();
+    console.log("Database connected successfully");
+
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: {
@@ -27,6 +38,7 @@ export const createUser = async (
     });
 
     if (existingUser) {
+      console.log("User already exists:", existingUser);
       return {
         success: false,
         error: "User already exists",
@@ -35,11 +47,13 @@ export const createUser = async (
     }
 
     // Create new user
+    console.log("Attempting to create new user...");
     const newUser = await prisma.user.create({
       data: {
         email: email,
       },
     });
+    console.log("User created successfully:", newUser);
 
     // Ensure the response is serializable
     return {
@@ -47,10 +61,22 @@ export const createUser = async (
       user: JSON.parse(JSON.stringify(newUser)),
     };
   } catch (error) {
-    console.error("Error creating user:", error);
+    console.error("Detailed error creating user:", {
+      error,
+      errorMessage: error instanceof Error ? error.message : "Unknown error",
+      errorStack: error instanceof Error ? error.stack : undefined,
+    });
+
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to create user",
+      debug: {
+        errorDetails: error,
+        prismaUrl: process.env.DATABASE_URL?.split("@")[1], // Only log the host part, not credentials
+      },
     };
+  } finally {
+    // Always disconnect
+    await prisma.$disconnect();
   }
 };
