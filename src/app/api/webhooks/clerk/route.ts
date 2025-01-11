@@ -4,13 +4,13 @@ import { clerkClient, WebhookEvent } from "@clerk/nextjs/server";
 import { createUser } from "@/actions/createUser";
 
 export async function POST(req: Request) {
-  const client = await clerkClient();
   const SIGNING_SECRET = process.env.SIGNING_SECRET;
 
   if (!SIGNING_SECRET) {
-    throw new Error(
-      "Error: Please add SIGNING_SECRET from Clerk Dashboard to .env or .env.local"
-    );
+    console.error("Missing SIGNING_SECRET environment variable");
+    return new Response("Configuration error", {
+      status: 500,
+    });
   }
 
   // Create new Svix instance with secret
@@ -49,23 +49,49 @@ export async function POST(req: Request) {
     });
   }
 
-  // Do something with payload
-  // For this guide, log payload to console
   const { id } = evt.data;
   const eventType = evt.type;
-  if (eventType == "user.created") {
-    const { email_addresses, id } = evt.data;
-    const newUser = await createUser(email_addresses[0].email_address);
-    if (newUser) {
-      await client.users.updateUserMetadata(id, {
-        publicMetadata: {
-          userId: newUser._id,
-        },
-      });
+
+  if (eventType === "user.created") {
+    try {
+      const { email_addresses, id } = evt.data;
+
+      if (!email_addresses?.[0]?.email_address) {
+        throw new Error("No email address provided");
+      }
+
+      const result = await createUser(email_addresses[0].email_address);
+
+      if (!result.success) {
+        console.error("Failed to create user:", result.error);
+        // Don't return error response if user already exists
+        if (result.error === "User already exists") {
+          return new Response("User processed", { status: 200 });
+        }
+        return new Response("Failed to process user", { status: 500 });
+      }
+
+      if (result.user?._id) {
+        try {
+          // Get the clerk client instance
+          const clerk = await clerkClient();
+          // Now use the client instance to update user metadata
+          await clerk.users.updateUserMetadata(id, {
+            publicMetadata: {
+              userId: result.user._id,
+            },
+          });
+        } catch (error) {
+          console.error("Failed to update Clerk metadata:", error);
+          // Continue anyway as the user was created successfully
+        }
+      }
+    } catch (error) {
+      console.error("Error processing user creation:", error);
+      return new Response("Error processing webhook", { status: 500 });
     }
   }
-  console.log(`Received webhook with ID ${id} and event type of ${eventType}`);
-  console.log("Webhook payload:", body);
 
+  console.log(`Processed webhook ID ${id} of type ${eventType}`);
   return new Response("Webhook received", { status: 200 });
 }

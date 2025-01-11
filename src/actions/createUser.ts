@@ -2,16 +2,55 @@
 
 import prisma from "@/lib/prisma";
 
-export const createUser = async (user: any) => {
+interface CreateUserResponse {
+  success: boolean;
+  user?: any;
+  error?: string;
+}
+
+export const createUser = async (
+  email: string
+): Promise<CreateUserResponse> => {
+  if (!email) {
+    return {
+      success: false,
+      error: "Email is required",
+    };
+  }
+
   try {
-    const newUser = await prisma.user.create({
-      data: {
-        email: user,
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: {
+        email: email,
       },
     });
-    return JSON.parse(JSON.stringify(newUser));
+
+    if (existingUser) {
+      return {
+        success: false,
+        error: "User already exists",
+        user: existingUser,
+      };
+    }
+
+    // Create new user
+    const newUser = await prisma.user.create({
+      data: {
+        email: email,
+      },
+    });
+
+    // Ensure the response is serializable
+    return {
+      success: true,
+      user: JSON.parse(JSON.stringify(newUser)),
+    };
   } catch (error) {
-    console.log(error);
-    return null;
+    console.error("Error creating user:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to create user",
+    };
   }
 };
