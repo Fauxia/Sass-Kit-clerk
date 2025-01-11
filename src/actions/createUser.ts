@@ -12,5 +12,6 @@ export const createUser = async (user: any) => {
     return JSON.parse(JSON.stringify(newUser));
   } catch (error) {
     console.log(error);
+    return null;
   }
 };
