@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 export default async function page() {
   const { userId } = await auth();
   const user = await currentUser();
+  console.log(userId);
   const isAuthenticated = !!userId;
   if (!isAuthenticated) {
     redirect("/sign-up");
