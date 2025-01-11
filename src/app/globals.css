@@ -7,3 +7,6 @@ body {
   scroll-behavior: smooth;
   color: #fff;
 }
+.clerk-footer {
+  display: none !important;
+}
